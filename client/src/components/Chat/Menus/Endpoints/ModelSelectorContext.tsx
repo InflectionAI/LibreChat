@@ -7,6 +7,7 @@ import { useAgentsMapContext, useAssistantsMapContext, useChatContext } from '~/
 import { useEndpoints, useSelectorEffects, useKeyDialog } from '~/hooks';
 import useSelectMention from '~/hooks/Input/useSelectMention';
 import { useGetEndpointsQuery } from '~/data-provider';
+import { captureEvent } from '~/utils/posthog';
 import { filterItems } from './utils';
 
 type ModelSelectorContextType = {
@@ -118,6 +119,16 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
     } else if (isAssistantsEndpoint(spec.preset.endpoint)) {
       model = spec.preset.assistant_id ?? '';
     }
+    
+    // Track model spec selection
+    captureEvent('model_spec_selected', {
+      specName: spec.name,
+      endpoint: spec.preset.endpoint,
+      model: model,
+      isAgent: isAgentsEndpoint(spec.preset.endpoint),
+      isAssistant: isAssistantsEndpoint(spec.preset.endpoint),
+    });
+    
     setSelectedValues({
       endpoint: spec.preset.endpoint,
       model,
@@ -130,6 +141,13 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
       if (endpoint.value) {
         onSelectEndpoint?.(endpoint.value);
       }
+      
+      // Track endpoint selection
+      captureEvent('endpoint_selected', {
+        endpoint: endpoint.value,
+        hasModels: false,
+      });
+      
       setSelectedValues({
         endpoint: endpoint.value,
         model: '',
@@ -139,19 +157,39 @@ export function ModelSelectorProvider({ children, startupConfig }: ModelSelector
   };
 
   const handleSelectModel = (endpoint: Endpoint, model: string) => {
+    let actualModel = model;
+    let isAgent = false;
+    let isAssistant = false;
+    
     if (isAgentsEndpoint(endpoint.value)) {
+      isAgent = true;
       onSelectEndpoint?.(endpoint.value, {
         agent_id: model,
         model: agentsMap?.[model]?.model ?? '',
       });
+      actualModel = agentsMap?.[model]?.model ?? model;
     } else if (isAssistantsEndpoint(endpoint.value)) {
+      isAssistant = true;
       onSelectEndpoint?.(endpoint.value, {
         assistant_id: model,
         model: assistantsMap?.[endpoint.value]?.[model]?.model ?? '',
       });
+      actualModel = assistantsMap?.[endpoint.value]?.[model]?.model ?? model;
     } else if (endpoint.value) {
       onSelectEndpoint?.(endpoint.value, { model });
     }
+    
+    // Track model selection
+    captureEvent('model_selected', {
+      endpoint: endpoint.value,
+      model: actualModel,
+      modelId: model,
+      isAgent,
+      isAssistant,
+      previousModel: selectedValues.model,
+      previousEndpoint: selectedValues.endpoint,
+    });
+    
     setSelectedValues({
       endpoint: endpoint.value,
       model,

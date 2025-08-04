@@ -23,6 +23,7 @@ import {
 import { TAuthConfig, TUserContext, TAuthContext, TResError } from '~/common';
 import useTimeout from './useTimeout';
 import store from '~/store';
+import { identifyUser, reset as resetPostHog, captureEvent } from '~/utils/posthog';
 
 const AuthContext = createContext<TAuthContext | undefined>(undefined);
 
@@ -87,6 +88,15 @@ const AuthContextProvider = ({
       }
       setError(undefined);
       setUserContext({ token, isAuthenticated: true, user, redirect: '/c/new' });
+      
+      // Identify user in PostHog
+      if (user) {
+        identifyUser(user.id, user.email, user.name || user.username);
+        captureEvent('user_logged_in', {
+          provider: user.provider,
+          has_2fa: user.twoFactorEnabled,
+        });
+      }
     },
     onError: (error: TResError | unknown) => {
       const resError = error as TResError;
@@ -96,12 +106,18 @@ const AuthContextProvider = ({
   });
   const logoutUser = useLogoutUserMutation({
     onSuccess: (data) => {
+      // Capture logout event before resetting
+      captureEvent('user_logged_out');
+      
       setUserContext({
         token: undefined,
         isAuthenticated: false,
         user: undefined,
         redirect: data.redirect ?? '/login',
       });
+      
+      // Reset PostHog to clear user data
+      resetPostHog();
     },
     onError: (error) => {
       doSetError((error as Error).message);
@@ -111,6 +127,9 @@ const AuthContextProvider = ({
         user: undefined,
         redirect: '/login',
       });
+      
+      // Reset PostHog on logout error as well
+      resetPostHog();
     },
   });
   const refreshToken = useRefreshTokenMutation();
@@ -141,6 +160,11 @@ const AuthContextProvider = ({
         const { user, token = '' } = data ?? {};
         if (token) {
           setUserContext({ token, isAuthenticated: true, user });
+          
+          // Identify user in PostHog after silent refresh
+          if (user) {
+            identifyUser(user.id, user.email, user.name || user.username);
+          }
         } else {
           console.log('Token is not present. User is not authenticated.');
           if (authConfig?.test === true) {

@@ -144,5 +144,8 @@
       "admin/",
       "packages/"
     ]
+  },
+  "dependencies": {
+    "posthog-js": "^1.258.5"
   }
 }

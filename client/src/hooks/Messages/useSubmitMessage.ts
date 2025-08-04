@@ -4,6 +4,7 @@ import { useRecoilValue, useSetRecoilState } from 'recoil';
 import { Constants, replaceSpecialVars } from 'librechat-data-provider';
 import { useChatContext, useChatFormContext, useAddedChatContext } from '~/Providers';
 import { useAuthContext } from '~/hooks/AuthContext';
+import { captureEvent } from '~/utils/posthog';
 import store from '~/store';
 
 const appendIndex = (index: number, value?: string) => {
@@ -16,7 +17,7 @@ const appendIndex = (index: number, value?: string) => {
 export default function useSubmitMessage() {
   const { user } = useAuthContext();
   const methods = useChatFormContext();
-  const { ask, index, getMessages, setMessages, latestMessage } = useChatContext();
+  const { ask, index, getMessages, setMessages, latestMessage, conversation } = useChatContext();
   const { addedIndex, ask: askAdditional, conversation: addedConvo } = useAddedChatContext();
 
   const autoSendPrompts = useRecoilValue(store.autoSendPrompts);
@@ -46,6 +47,29 @@ export default function useSubmitMessage() {
       const rootIndex = addedIndex - 1;
       const clientTimestamp = new Date().toISOString();
 
+      // Capture conversation information for analytics
+      const activeConversation = hasAdded ? addedConvo : conversation;
+      if (activeConversation) {
+        const eventData = {
+          endpoint: activeConversation.endpoint,
+          endpointType: activeConversation.endpointType,
+          model: activeConversation.model,
+          modelLabel: activeConversation.modelLabel,
+          messageLength: data.text.length,
+          hasFiles: rootMessages?.some(msg => msg.files && msg.files.length > 0),
+          isMultiConvo: hasAdded,
+          conversationId: activeConversation.conversationId,
+          timestamp: clientTimestamp,
+        };
+        
+        // Log for development
+        if (import.meta.env.DEV) {
+          console.log('Message sent tracking:', eventData);
+        }
+        
+        captureEvent('message_sent', eventData);
+      }
+
       ask({
         text: data.text,
         overrideConvoId: appendIndex(rootIndex, overrideConvoId),
@@ -71,6 +95,7 @@ export default function useSubmitMessage() {
       methods,
       addedIndex,
       addedConvo,
+      conversation,
       setMessages,
       getMessages,
       activeConvos,

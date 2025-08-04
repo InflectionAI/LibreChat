@@ -10,6 +10,7 @@ import {
   isAssistantsEndpoint,
 } from 'librechat-data-provider';
 import { useRecoilState, useRecoilValue, useSetRecoilState, useRecoilCallback } from 'recoil';
+import { captureEvent } from '~/utils/posthog';
 import type {
   TPreset,
   TSubmission,
@@ -286,6 +287,17 @@ const useNewConvo = (index = 0) => {
           mutateAsync({ files: filesToDelete });
         }
       }
+
+      // Track new conversation creation
+      captureEvent('conversation_created', {
+        endpoint: conversation.endpoint,
+        endpointType: conversation.endpointType,
+        model: conversation.model,
+        templateUsed: !!template.conversationId,
+        presetUsed: !!_preset,
+        keepLatestMessage,
+        keepAddedConvos,
+      });
 
       switchToConversation(
         conversation,

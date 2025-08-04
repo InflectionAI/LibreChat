@@ -7,6 +7,10 @@ import './mobile.css';
 import { ApiErrorBoundaryProvider } from './hooks/ApiErrorBoundaryContext';
 import 'katex/dist/katex.min.css';
 import 'katex/dist/contrib/copy-tex.js';
+import { initPostHog } from './utils/posthog';
+
+// Initialize PostHog
+initPostHog();
 
 const container = document.getElementById('root');
 const root = createRoot(container);
