@@ -146,6 +146,7 @@
     ]
   },
   "dependencies": {
-    "posthog-js": "^1.258.5"
+    "posthog-js": "^1.258.5",
+    "posthog-node": "^5.6.0"
   }
 }

@@ -19,6 +19,7 @@ const errorController = require('./controllers/ErrorController');
 const initializeMCPs = require('./services/initializeMCPs');
 const configureSocialLogins = require('./socialLogins');
 const AppService = require('./services/AppService');
+const PostHogService = require('./services/PostHogService');
 const staticCache = require('./utils/staticCache');
 const noIndex = require('./middleware/noIndex');
 const routes = require('./routes');
@@ -42,6 +43,9 @@ const startServer = async () => {
   indexSync().catch((err) => {
     logger.error('[indexSync] Background sync failed:', err);
   });
+
+  // Initialize PostHog
+  PostHogService.initialize();
 
   app.disable('x-powered-by');
   app.set('trust proxy', trusted_proxy);

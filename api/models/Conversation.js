@@ -3,6 +3,7 @@ const { createTempChatExpirationDate } = require('@librechat/api');
 const getCustomConfig = require('~/server/services/Config/getCustomConfig');
 const { getMessages, deleteMessages } = require('./Message');
 const { Conversation } = require('~/db/models');
+const PostHogService = require('~/server/services/PostHogService');
 
 /**
  * Searches for a conversation by conversationId and returns a lean document with only conversationId and user.
@@ -128,6 +129,29 @@ module.exports = {
           upsert: true,
         },
       );
+
+      // Track conversation in PostHog
+      try {
+        const isNewConversation = !conversation.createdAt || conversation.createdAt === conversation.updatedAt;
+        if (isNewConversation) {
+          PostHogService.captureConversationCreated({
+            userId: req.user.id,
+            conversationId: conversation.conversationId,
+            title: conversation.title,
+            endpoint: conversation.endpoint,
+            model: conversation.model,
+          });
+        } else {
+          PostHogService.captureConversationUpdated({
+            userId: req.user.id,
+            conversationId: conversation.conversationId,
+            title: conversation.title,
+            messageCount: messages.length,
+          });
+        }
+      } catch (trackingError) {
+        logger.warn('PostHog tracking error:', trackingError);
+      }
 
       return conversation.toObject();
     } catch (error) {

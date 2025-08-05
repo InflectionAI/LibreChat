@@ -3,6 +3,7 @@ const { logger } = require('@librechat/data-schemas');
 const { createTempChatExpirationDate } = require('@librechat/api');
 const getCustomConfig = require('~/server/services/Config/getCustomConfig');
 const { Message } = require('~/db/models');
+const PostHogService = require('~/server/services/PostHogService');
 
 const idSchema = z.string().uuid();
 
@@ -80,6 +81,35 @@ async function saveMessage(req, params, metadata) {
       update,
       { upsert: true, new: true },
     );
+
+    // Track message in PostHog
+    try {
+      if (params.isCreatedByUser) {
+        PostHogService.captureMessageSent({
+          userId: req.user.id,
+          conversationId: params.conversationId,
+          messageId: params.messageId,
+          endpoint: params.endpoint,
+          model: params.model,
+          messageLength: params.text?.length || 0,
+          hasFiles: !!(params.files && params.files.length > 0),
+          parentMessageId: params.parentMessageId,
+        });
+      } else {
+        PostHogService.captureMessageReceived({
+          userId: req.user.id,
+          conversationId: params.conversationId,
+          messageId: params.messageId,
+          endpoint: params.endpoint,
+          model: params.model,
+          responseLength: params.text?.length || 0,
+          tokenCount: params.tokenCount,
+          parentMessageId: params.parentMessageId,
+        });
+      }
+    } catch (trackingError) {
+      logger.warn('PostHog tracking error:', trackingError);
+    }
 
     return message.toObject();
   } catch (err) {
